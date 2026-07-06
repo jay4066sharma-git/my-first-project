@@ -1,0 +1,389 @@
+
+<h2 class="sr-only">Goal-based portfolio management simulator with glide path, dynamic rebalancing, and multi-goal tracking</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.wrap{padding:1.5rem 0;max-width:680px}
+.section-title{font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.goal-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.5rem}
+.goal-tab{padding:6px 14px;font-size:13px;border:0.5px solid var(--color-border-secondary);border-radius:20px;cursor:pointer;background:var(--color-background-primary);color:var(--color-text-secondary);transition:all .15s}
+.goal-tab.active{background:#378ADD;border-color:#378ADD;color:#fff;font-weight:500}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem}
+.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px}
+.metric .label{font-size:12px;color:var(--color-text-secondary);margin-bottom:4px}
+.metric .value{font-size:20px;font-weight:500;color:var(--color-text-primary)}
+.metric .sub{font-size:11px;color:var(--color-text-tertiary);margin-top:2px}
+.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.5rem}
+.panel{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.25rem}
+.panel.full{grid-column:1/-1}
+.alloc-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:10px 0 6px;gap:2px}
+.alloc-seg{border-radius:3px;transition:width .4s ease}
+.alloc-legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--color-text-secondary)}
+.alloc-dot{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:middle}
+.slider-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.slider-row label{font-size:13px;color:var(--color-text-secondary);min-width:130px}
+.slider-row input[type=range]{flex:1}
+.slider-row .val{font-size:13px;font-weight:500;min-width:48px;text-align:right}
+.progress-wrap{margin:6px 0 12px}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);margin-bottom:5px}
+.progress-track{height:10px;background:var(--color-background-secondary);border-radius:5px;overflow:hidden}
+.progress-fill{height:100%;border-radius:5px;transition:width .4s ease}
+.rebal-event{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:13px}
+.rebal-event:last-child{border-bottom:none}
+.badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500}
+.badge-info{background:var(--color-background-info);color:var(--color-text-info)}
+.badge-warn{background:var(--color-background-warning);color:var(--color-text-warning)}
+.badge-success{background:var(--color-background-success);color:var(--color-text-success)}
+.badge-danger{background:var(--color-background-danger);color:var(--color-text-danger)}
+.sim-btn{padding:8px 20px;font-size:14px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;background:var(--color-background-primary);color:var(--color-text-primary);transition:all .15s}
+.sim-btn:hover{background:var(--color-background-secondary)}
+.sim-btn.primary{background:#378ADD;border-color:#378ADD;color:#fff}
+.sim-btn.primary:hover{background:#185FA5;border-color:#185FA5}
+.btn-row{display:flex;gap:8px;align-items:center;margin-top:12px}
+.risk-meter{display:flex;gap:3px;margin:6px 0}
+.risk-seg{flex:1;height:8px;border-radius:2px}
+.phase-badge{display:inline-block;font-size:12px;padding:3px 10px;border-radius:12px;margin-left:8px}
+</style>
+
+<div class="wrap">
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem">
+  <div>
+    <h2 style="font-size:18px;font-weight:500;color:var(--color-text-primary)">Goal-based portfolio manager</h2>
+    <p style="font-size:13px;color:var(--color-text-secondary);margin-top:3px">Glide path · dynamic rebalancing · risk capacity</p>
+  </div>
+  <button class="sim-btn primary" onclick="runSimulation()"><i class="ti ti-player-play" aria-hidden="true"></i> Simulate</button>
+</div>
+
+<div class="section-title">Active goals</div>
+<div class="goal-tabs" id="goalTabs"></div>
+
+<div class="metric-grid" id="metricCards"></div>
+
+<div class="panel-grid">
+  <div class="panel">
+    <div class="section-title">Portfolio allocation</div>
+    <div id="allocBar" class="alloc-bar"></div>
+    <div id="allocLegend" class="alloc-legend"></div>
+    <div style="margin-top:12px;font-size:12px;color:var(--color-text-secondary)">Glide path phase: <span id="phaseLabel" class="phase-badge"></span></div>
+  </div>
+  <div class="panel">
+    <div class="section-title">Risk capacity</div>
+    <div id="riskMeter" class="risk-meter"></div>
+    <div id="riskLabel" style="font-size:13px;color:var(--color-text-secondary);margin:4px 0 10px"></div>
+    <div class="section-title" style="margin-top:8px">Goal proximity</div>
+    <div id="proximityBar"></div>
+  </div>
+</div>
+
+<div class="panel full" style="margin-bottom:1.5rem">
+  <div class="section-title">Glide path — equity allocation over time</div>
+  <div style="position:relative;height:200px"><canvas id="glideChart" role="img" aria-label="Glide path showing equity allocation declining as goal approaches">Equity declines from ~80% early in accumulation to ~30% near goal date.</canvas></div>
+</div>
+
+<div class="panel full" style="margin-bottom:1.5rem">
+  <div class="section-title">Projected portfolio growth</div>
+  <div style="position:relative;height:220px"><canvas id="growthChart" role="img" aria-label="Projected portfolio value growth over time with corridor bands">Shows base, optimistic, and pessimistic projections toward goal target.</canvas></div>
+</div>
+
+<div class="panel full" style="margin-bottom:1.5rem">
+  <div class="section-title">Goal parameters</div>
+  <div id="sliders"></div>
+  <div class="btn-row">
+    <button class="sim-btn" onclick="resetGoal()"><i class="ti ti-refresh" aria-hidden="true"></i> Reset</button>
+    <button class="sim-btn" onclick="sendPrompt('Explain how the glide path and dynamic rebalancing strategy works for goal-based investing')">How this works ↗</button>
+  </div>
+</div>
+
+<div class="panel full">
+  <div class="section-title">Rebalancing log</div>
+  <div id="rebalLog"></div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const GOALS = [
+  {id:'retirement',label:'Retirement',icon:'ti-building-bank',target:5000000,horizon:25,monthly:15000,color:'#378ADD',phase:'Accumulation'},
+  {id:'house',label:'Home purchase',icon:'ti-home',target:2000000,horizon:7,monthly:18000,color:'#1D9E75',phase:'Transition'},
+  {id:'education',label:'Child education',icon:'ti-school',target:800000,horizon:12,monthly:5000,color:'#EF9F27',phase:'Accumulation'},
+  {id:'emergency',label:'Emergency fund',icon:'ti-shield',target:300000,horizon:2,monthly:12000,color:'#D85A30',phase:'Preservation'},
+];
+
+let activeGoal = 0;
+let glideChart = null, growthChart = null;
+let simYear = 0, simRunning = false;
+
+function getGoalParams(g) {
+  const yearsElapsed = g.horizon > 3 ? Math.max(0, g.horizon - Math.round(g.horizon * 0.85)) : 0;
+  const yearsLeft = g.horizon - yearsElapsed;
+  const progress = Math.min(0.95, (yearsElapsed * g.monthly * 12) / g.target);
+  const currentValue = Math.round(progress * g.target * 0.92);
+  return {yearsElapsed, yearsLeft, progress, currentValue};
+}
+
+function getGlidePath(yearsLeft, totalHorizon) {
+  const proximity = 1 - Math.max(0, Math.min(1, yearsLeft / Math.max(1, totalHorizon)));
+  const maxEquity = totalHorizon <= 3 ? 30 : totalHorizon <= 7 ? 60 : 85;
+  const minEquity = totalHorizon <= 3 ? 5 : totalHorizon <= 7 ? 20 : 25;
+  const equity = Math.round(maxEquity - (maxEquity - minEquity) * Math.pow(proximity, 0.7));
+  const bonds = Math.round((100 - equity) * 0.65);
+  const cash = 100 - equity - bonds;
+  return {equity, bonds, cash};
+}
+
+function getRiskLevel(yearsLeft) {
+  if(yearsLeft <= 2) return {level:'Very low',score:1,color:'#E24B4A'};
+  if(yearsLeft <= 5) return {level:'Low',score:2,color:'#EF9F27'};
+  if(yearsLeft <= 10) return {level:'Moderate',score:3,color:'#639922'};
+  if(yearsLeft <= 20) return {level:'Moderate–high',score:4,color:'#1D9E75'};
+  return {level:'High',score:5,color:'#378ADD'};
+}
+
+function getPhase(yearsLeft, total) {
+  if(yearsLeft / total > 0.6) return 'Accumulation';
+  if(yearsLeft / total > 0.25) return 'Growth–transition';
+  if(yearsLeft > 2) return 'Capital preservation';
+  return 'Distribution';
+}
+
+function renderGoalTabs() {
+  const el = document.getElementById('goalTabs');
+  el.innerHTML = GOALS.map((g,i) => `<button class="goal-tab${i===activeGoal?' active':''}" onclick="switchGoal(${i})">${g.label}</button>`).join('');
+}
+
+function renderMetrics() {
+  const g = GOALS[activeGoal];
+  const {yearsLeft, progress, currentValue} = getGoalParams(g);
+  const {equity, bonds, cash} = getGlidePath(yearsLeft, g.horizon);
+  const gap = Math.max(0, g.target - currentValue);
+  const monthsLeft = yearsLeft * 12;
+  const reqMonthly = monthsLeft > 0 ? Math.round(gap / monthsLeft) : 0;
+  const onTrack = reqMonthly <= g.monthly;
+  const el = document.getElementById('metricCards');
+  el.innerHTML = `
+    <div class="metric"><div class="label">Target corpus</div><div class="value">₹${(g.target/100000).toFixed(0)}L</div><div class="sub">${g.horizon}yr horizon</div></div>
+    <div class="metric"><div class="label">Current value</div><div class="value">₹${(currentValue/100000).toFixed(1)}L</div><div class="sub">${Math.round(progress*100)}% funded</div></div>
+    <div class="metric"><div class="label">Monthly SIP</div><div class="value">₹${(g.monthly/1000).toFixed(0)}K</div><div class="sub" style="color:${onTrack?'var(--color-text-success)':'var(--color-text-danger)'}">${onTrack?'On track':'₹'+Math.round((reqMonthly-g.monthly)/1000)+'K short'}</div></div>
+    <div class="metric"><div class="label">Equity alloc.</div><div class="value">${equity}%</div><div class="sub">${yearsLeft}yr to goal</div></div>
+  `;
+}
+
+function renderAllocation() {
+  const g = GOALS[activeGoal];
+  const {yearsLeft} = getGoalParams(g);
+  const {equity, bonds, cash} = getGlidePath(yearsLeft, g.horizon);
+  const colors = ['#378ADD','#1D9E75','#888780'];
+  const segs = [
+    {label:'Equity',val:equity,color:colors[0]},
+    {label:'Bonds/debt',val:bonds,color:colors[1]},
+    {label:'Cash/liquid',val:cash,color:colors[2]},
+  ];
+  document.getElementById('allocBar').innerHTML = segs.map(s=>`<div class="alloc-seg" style="width:${s.val}%;background:${s.color}"></div>`).join('');
+  document.getElementById('allocLegend').innerHTML = segs.map(s=>`<span><span class="alloc-dot" style="background:${s.color}"></span>${s.label} ${s.val}%</span>`).join('');
+  const phase = getPhase(yearsLeft, g.horizon);
+  const phaseColors = {
+    'Accumulation':'background:#B5D4F4;color:#0C447C',
+    'Growth–transition':'background:#C0DD97;color:#27500A',
+    'Capital preservation':'background:#FAC775;color:#633806',
+    'Distribution':'background:#F7C1C1;color:#791F1F',
+  };
+  const pb = document.getElementById('phaseLabel');
+  pb.textContent = phase;
+  pb.style.cssText = phaseColors[phase] || '';
+}
+
+function renderRisk() {
+  const g = GOALS[activeGoal];
+  const {yearsLeft, progress} = getGoalParams(g);
+  const risk = getRiskLevel(yearsLeft);
+  const meter = document.getElementById('riskMeter');
+  const segColors = ['#E24B4A','#EF9F27','#639922','#1D9E75','#378ADD'];
+  meter.innerHTML = segColors.map((c,i)=>`<div class="risk-seg" style="background:${i<risk.score?c:'var(--color-background-secondary)'}"></div>`).join('');
+  document.getElementById('riskLabel').innerHTML = `<strong style="color:${risk.color}">${risk.level} risk</strong> · ${yearsLeft} years to goal`;
+
+  const prox = Math.min(1, (g.horizon - yearsLeft) / g.horizon);
+  const proxPct = Math.round(prox * 100);
+  const proxColor = prox > 0.8 ? '#E24B4A' : prox > 0.5 ? '#EF9F27' : '#378ADD';
+  document.getElementById('proximityBar').innerHTML = `
+    <div class="progress-label"><span>Journey progress</span><span>${proxPct}%</span></div>
+    <div class="progress-track"><div class="progress-fill" style="width:${proxPct}%;background:${proxColor}"></div></div>
+    <div class="progress-label" style="margin-top:6px"><span>Funding progress</span><span>${Math.round(progress*100)}%</span></div>
+    <div class="progress-track"><div class="progress-fill" style="width:${Math.round(progress*100)}%;background:#1D9E75"></div></div>
+  `;
+}
+
+function buildGlideData(horizon) {
+  const pts = [];
+  for(let y = 0; y <= horizon; y++) {
+    const yearsLeft = horizon - y;
+    pts.push(getGlidePath(yearsLeft, horizon).equity);
+  }
+  return pts;
+}
+
+function buildGrowthData(g) {
+  const {currentValue, yearsLeft} = getGoalParams(g);
+  const {equity} = getGlidePath(yearsLeft, g.horizon);
+  const baseReturn = 0.04 + (equity / 100) * 0.08;
+  const base=[], bull=[], bear=[];
+  let bv = currentValue, uv = currentValue, dv = currentValue;
+  const labels = [];
+  for(let y = 0; y <= g.horizon; y++) {
+    labels.push('Y'+y);
+    base.push(Math.round(bv / 100000));
+    bull.push(Math.round(uv / 100000));
+    bear.push(Math.round(dv / 100000));
+    const yLeft = g.horizon - y;
+    const eq = getGlidePath(yLeft, g.horizon).equity / 100;
+    const r = 0.04 + eq * 0.08;
+    bv = (bv + g.monthly * 12) * (1 + r);
+    uv = (uv + g.monthly * 12) * (1 + r * 1.35);
+    dv = (dv + g.monthly * 12) * (1 + r * 0.55);
+  }
+  return {labels, base, bull, bear, targetL: Math.round(g.target/100000)};
+}
+
+function renderGlideChart() {
+  if(glideChart){glideChart.destroy();glideChart=null}
+  const g = GOALS[activeGoal];
+  const {yearsLeft} = getGoalParams(g);
+  const data = buildGlideData(g.horizon);
+  const labels = data.map((_,i)=>'Y'+i);
+  const cursorX = g.horizon - yearsLeft;
+  const ctx = document.getElementById('glideChart').getContext('2d');
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const textColor = isDark ? '#aaa' : '#888';
+  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  glideChart = new Chart(ctx, {
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Equity %',data,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.12)',fill:true,tension:.4,pointRadius:2,borderWidth:2},
+      {label:'Bonds %',data:data.map(v=>Math.round((100-v)*0.65)),borderColor:'#1D9E75',backgroundColor:'transparent',fill:false,tension:.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw}%`}}},scales:{
+      x:{ticks:{color:textColor,font:{size:11},maxTicksLimit:8},grid:{color:gridColor}},
+      y:{min:0,max:100,ticks:{color:textColor,font:{size:11},callback:v=>v+'%'},grid:{color:gridColor}},
+    },animation:{duration:400}}
+  });
+}
+
+function renderGrowthChart() {
+  if(growthChart){growthChart.destroy();growthChart=null}
+  const g = GOALS[activeGoal];
+  const d = buildGrowthData(g);
+  const ctx = document.getElementById('growthChart').getContext('2d');
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const textColor = isDark ? '#aaa' : '#888';
+  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const targetData = d.labels.map(()=>d.targetL);
+  growthChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:d.labels,datasets:[
+      {label:'Base case',data:d.base,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.08)',fill:true,tension:.4,pointRadius:0,borderWidth:2},
+      {label:'Bull case',data:d.bull,borderColor:'#1D9E75',backgroundColor:'transparent',fill:false,tension:.4,pointRadius:0,borderWidth:1.5,borderDash:[6,3]},
+      {label:'Bear case',data:d.bear,borderColor:'#E24B4A',backgroundColor:'transparent',fill:false,tension:.4,pointRadius:0,borderWidth:1.5,borderDash:[2,4]},
+      {label:'Target',data:targetData,borderColor:'#EF9F27',backgroundColor:'transparent',fill:false,tension:0,pointRadius:0,borderWidth:1,borderDash:[8,4]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:textColor,font:{size:11},maxTicksLimit:10},grid:{color:gridColor}},
+      y:{ticks:{color:textColor,font:{size:11},callback:v=>'₹'+v+'L'},grid:{color:gridColor}},
+    },animation:{duration:400}}
+  });
+}
+
+function renderSliders() {
+  const g = GOALS[activeGoal];
+  const el = document.getElementById('sliders');
+  el.innerHTML = `
+    <div class="slider-row"><label>Monthly SIP (₹K)</label><input type="range" min="2" max="50" step="1" value="${Math.round(g.monthly/1000)}" oninput="updateGoal('monthly',this.value*1000);document.getElementById('sipVal').textContent='₹'+this.value+'K'"><span class="val" id="sipVal">₹${Math.round(g.monthly/1000)}K</span></div>
+    <div class="slider-row"><label>Time horizon (yrs)</label><input type="range" min="1" max="30" step="1" value="${g.horizon}" oninput="updateGoal('horizon',+this.value);document.getElementById('horizonVal').textContent=this.value+'yr'"><span class="val" id="horizonVal">${g.horizon}yr</span></div>
+    <div class="slider-row"><label>Target corpus (₹L)</label><input type="range" min="5" max="500" step="5" value="${Math.round(g.target/100000)}" oninput="updateGoal('target',this.value*100000);document.getElementById('targetVal').textContent='₹'+this.value+'L'"><span class="val" id="targetVal">₹${Math.round(g.target/100000)}L</span></div>
+  `;
+}
+
+function renderRebalLog() {
+  const g = GOALS[activeGoal];
+  const {yearsLeft} = getGoalParams(g);
+  const events = [];
+  const checkpoints = [
+    {yr:Math.max(0,g.horizon-2),reason:'Near-goal de-risking',type:'danger',action:'Shift 15% equity → bonds'},
+    {yr:Math.max(0,Math.floor(g.horizon*0.5)),reason:'Mid-point rebalance',type:'warn',action:'Trim equity drift, add bonds 8%'},
+    {yr:Math.max(0,Math.floor(g.horizon*0.25)),reason:'Annual drift correction',type:'info',action:'Rebalance to target bands'},
+    {yr:g.horizon,reason:'Goal maturity trigger',type:'success',action:'Liquidate to cash/FD'},
+  ];
+  const el = document.getElementById('rebalLog');
+  el.innerHTML = checkpoints.map(e=>`
+    <div class="rebal-event">
+      <div style="font-size:13px;color:var(--color-text-secondary);min-width:48px">Y${e.yr}</div>
+      <div style="flex:1"><div style="font-size:13px;color:var(--color-text-primary)">${e.reason}</div><div style="font-size:12px;color:var(--color-text-secondary)">${e.action}</div></div>
+      <span class="badge badge-${e.type}">${e.type==='danger'?'urgent':e.type==='warn'?'review':e.type==='info'?'scheduled':'completed'}</span>
+    </div>
+  `).join('');
+}
+
+function renderAll() {
+  renderGoalTabs();
+  renderMetrics();
+  renderAllocation();
+  renderRisk();
+  renderSliders();
+  renderRebalLog();
+  setTimeout(()=>{renderGlideChart();renderGrowthChart();},50);
+}
+
+function switchGoal(i) {
+  activeGoal = i;
+  renderAll();
+}
+
+function updateGoal(key, val) {
+  GOALS[activeGoal][key] = val;
+  renderMetrics();
+  renderAllocation();
+  renderRisk();
+  renderRebalLog();
+  renderGlideChart();
+  renderGrowthChart();
+}
+
+function resetGoal() {
+  const defaults = [
+    {target:5000000,horizon:25,monthly:15000},
+    {target:2000000,horizon:7,monthly:18000},
+    {target:800000,horizon:12,monthly:5000},
+    {target:300000,horizon:2,monthly:12000},
+  ];
+  Object.assign(GOALS[activeGoal], defaults[activeGoal]);
+  renderAll();
+}
+
+function runSimulation() {
+  let y = 0;
+  const g = GOALS[activeGoal];
+  const btn = document.querySelector('.sim-btn.primary');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader" aria-hidden="true"></i> Running...';
+  const orig = g.horizon;
+  const interval = setInterval(()=>{
+    if(y > orig) {
+      clearInterval(interval);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-player-play" aria-hidden="true"></i> Simulate';
+      g.horizon = orig;
+      renderAll();
+      return;
+    }
+    g.horizon = Math.max(1, orig - y);
+    renderMetrics();
+    renderAllocation();
+    renderRisk();
+    renderGlideChart();
+    renderGrowthChart();
+    y++;
+  }, 120);
+}
+
+renderAll();
+</script>
